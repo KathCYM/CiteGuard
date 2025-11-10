@@ -17,7 +17,7 @@ Any of the following depending on which model/platform you intend to use.
 - `ANTHROPIC_API_KEY`: Your anthropic api key (for claude models)
 - `TOGETHER_API_KEY`: Your together api key (for llama models)
 
-### Run
+### Run CiteME evaluation
 1. Install the required python packages listed in the `requirements.txt`.
    ```
    pip install -r requirements.txt
@@ -25,10 +25,17 @@ Any of the following depending on which model/platform you intend to use.
 
 2. Download the dataset from [citeme.ai](https://www.citeme.ai) and place it in the project folder as `DATASET.csv`. You will need to convert from .tsv to .csv if needed.
 
-3. Update the model\_name in the `main.py` file and run the following command. 
+3. Run the following command. 
    ```
-   python src/main.py
+   python src/main.py --dataset <path to citeme.csv> --model_name <model name> 
    ```
+
+### Run your own citation search
+1. Follow the same setup instruction, and run the following command:
+   ```
+   python src/main.py  --model_name <model name> --excerpt <str containing the excerpt> --skip_citations <str of list of citations to skip, seperated by commas>
+
+We are working on supporting local models, stay tuned!
 
 ## 🪪 License <a name="license"></a>
 Code: MIT. Check `LICENSE`.
