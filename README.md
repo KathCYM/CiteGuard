@@ -13,9 +13,10 @@ CiteAgent requires following environment variables to function properly:
 - `S2_API_KEY`: Your semantic scholar api key
 
 Any of the following depending on which model/platform you intend to use.
-- `OPENAI_API_KEY`: Your openai api key (for gpt-4 models)
+- `OPENAI_API_KEY`: Your openai api key (for openai models)
 - `ANTHROPIC_API_KEY`: Your anthropic api key (for claude models)
 - `TOGETHER_API_KEY`: Your together api key (for llama models)
+- `DEEPSEEK_API_KEY`: Your deepseek api key (for deepseek models)
 
 ### Run CiteME evaluation
 1. Install the required python packages listed in the `requirements.txt`.
@@ -35,7 +36,8 @@ Any of the following depending on which model/platform you intend to use.
    ```
    python src/main.py  --model_name <model name> --excerpt <str containing the excerpt> --skip_citations <str of list of citations to skip, seperated by commas>
 
-We are working on supporting local models, stay tuned!
+### Run with your local model (Ollama)
+1. To run with your local model using ollama, simply add the `--local_model` flag and use the ollama model name you used to create the model.
 
 ## 🪪 License <a name="license"></a>
 Code: MIT. Check `LICENSE`.

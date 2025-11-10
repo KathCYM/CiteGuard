@@ -4,19 +4,19 @@ from langchain_deepseek import ChatDeepSeek
 from langchain_anthropic import ChatAnthropic
 from langchain_together import ChatTogether
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 
 DEFAULT_TEMPERATURE = 0.95
 
-def get_model_by_name(model_name: str, temperature: float = DEFAULT_TEMPERATURE):
-    if "gpt-oss" in model_name.lower():
-        return ChatTogether(
-            together_api_key=os.getenv("TOGETHER_API_KEY"),
-            temperature=temperature,
+def get_model_by_name(model_name: str, temperature: float = DEFAULT_TEMPERATURE, local_model: bool = False):
+    if local_model:
+        return ChatOllama(
             model=model_name,
+            validate_model_on_init=True,
+            temperature=temperature
         )
     if model_name.startswith("gpt-") or model_name.startswith("o1-"):
         return ChatOpenAI(model=model_name, temperature=temperature)
-        # return AzureOpenAI(model=model_name, temperature=temperature)
     if model_name.startswith("claude-"):
         return ChatAnthropic(
             temperature=temperature,

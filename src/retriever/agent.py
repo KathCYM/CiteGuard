@@ -1,4 +1,3 @@
-from datasets import load_dataset
 from retriever.llm_base import DEFAULT_TEMPERATURE, get_model_by_name
 from typing import List, Type
 from langchain_core.messages import (
@@ -8,8 +7,8 @@ from langchain_core.messages import (
     ToolMessage,
     BaseMessage,
 )
-from langchain.output_parsers import PydanticOutputParser
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from retriever.search_provider import (
     SemanticScholarSearchProvider,
@@ -120,10 +119,11 @@ class LLMSelfAskAgentPydantic(BaseAgent):
         prompt_name: str = "default",
         pydantic_object: Type[Output] | Type[OutputSearchOnly] = Output,
         console = None,
+        local_model: bool = False,
     ) -> None:
         self.prompt_template_path = self.prompts[prompt_name][0]
         self.human_intro = self.human_intros[self.prompts[prompt_name][1]]
-        self.model = get_model_by_name(model_name, temperature=temperature)
+        self.model = get_model_by_name(model_name, temperature=temperature, local_model=local_model)
         self.parser = PydanticOutputParser(pydantic_object=pydantic_object)
         if use_web_search:
             self.search_provider = SemanticScholarWebSearchProvider(
@@ -177,7 +177,6 @@ class LLMSelfAskAgentPydantic(BaseAgent):
 
     def _search_snippet(self, query:str, year: str, src_paper_title: str, skip=[]):
         results = self.search_provider.snippet_search(query, year, src_paper_title, skip=skip)
-        print("search snippet results:", results)
         return HumanMessage(results)
 
     def __process_search(self, papers: List[PaperSearchResult]):
@@ -323,6 +322,7 @@ class LLMSelfAskAgentPydantic(BaseAgent):
         RETRY_DELAY = 30
         for attempt in range(1, MAX_RETRIES + 1):
             try:
+                self.console.log(f"Invoking LLM...")
                 response: BaseMessage = pipeline.invoke({})
                 cleaned = extract_last_json_block(response.content)
                 self.history.append(response)

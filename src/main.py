@@ -100,6 +100,7 @@ def main():
         prompt_name=prompt_name,
         pydantic_object=pdo,
         console = console,
+        local_model=args.local_model,
     )
 
     console.log(f"AGENT BACKBONE: [bold green]{metadata['model']}")
@@ -195,8 +196,8 @@ def main():
         results.append(result_data)
 
 
-    with open(RESULT_FILE_NAME, "w") as f:
-        json.dump({"metadata": metadata, "results": results}, f, indent=4)
+        with open(RESULT_FILE_NAME, "w") as f:
+            json.dump({"metadata": metadata, "results": results}, f, indent=4)
 
 if __name__ == "__main__":
     main()
