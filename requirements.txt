@@ -3,6 +3,7 @@ langchain
 langchain-openai
 langchain-together
 langchain-anthropic
+langchain-deepseek
 pydantic
 selenium
 PyPDF2

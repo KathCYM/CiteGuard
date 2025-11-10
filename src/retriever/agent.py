@@ -119,11 +119,11 @@ class LLMSelfAskAgentPydantic(BaseAgent):
         use_web_search=False,
         prompt_name: str = "default",
         pydantic_object: Type[Output] | Type[OutputSearchOnly] = Output,
+        console = None,
     ) -> None:
         self.prompt_template_path = self.prompts[prompt_name][0]
         self.human_intro = self.human_intros[self.prompts[prompt_name][1]]
         self.model = get_model_by_name(model_name, temperature=temperature)
-        print("Using model:", self.model)
         self.parser = PydanticOutputParser(pydantic_object=pydantic_object)
         if use_web_search:
             self.search_provider = SemanticScholarWebSearchProvider(
@@ -132,29 +132,21 @@ class LLMSelfAskAgentPydantic(BaseAgent):
             self.search_provider.s2api.warmup()
         else:
             self.search_provider = SemanticScholarSearchProvider(
-                limit=search_limit, only_open_access=only_open_access
+                limit=search_limit, only_open_access=only_open_access, console=console
             )
         self.source_papers_title: List[str] = []
-        self.paper_dict = self._load_paper_dict()
+        self.console = console
         self.reset()
-    def _load_paper_dict(self):
-        dataset = load_dataset("KathCYM/CiteMEFull", split="train")  # or specify another split if needed
-        paper_dict = {}
 
-        for item in dataset:
-            title = item.get("source_paper_title")
-            text = item.get("source_paper_text")
-            if title and text:
-                paper_dict[title] = text
-
-        return paper_dict
-
-    def reset(self, source_papers_title: List[str] = []):
+    def reset(self, source_papers_title: List[str] = [], skip=[]):
         with open(self.prompt_template_path, "r") as f:
             system_prompt = f.read()
         system_prompt = system_prompt.replace(
             "<FORMAT_INSTRUCTIONS>", self.parser.get_format_instructions()
         )
+        if len(skip) > 0:
+            skip_str = "\n".join([f"- {s}" for s in skip])
+            system_prompt = system_prompt + f"The following paper titles should be skipped during search:\n{skip_str}"
         if isinstance(self.model, ChatOpenAI) and self.model.model_name.startswith('o1'):
             self.history = [HumanMessage(content=system_prompt)]
         else:
@@ -175,25 +167,27 @@ class LLMSelfAskAgentPydantic(BaseAgent):
             f"Paper {paper_id} not found in buffer: {[p.paperId for p in search_buffer]}. Please try a different paper."
         )
 
-    def _search_relevance(self, query: str, year: str):
-        papers = self.search_provider(query, year)
+    def _search_relevance(self, query: str, year: str, skip=[]):
+        papers = self.search_provider(query, year, skip=skip)
         return self.__process_search(papers)
 
-    def _search_citation_count(self, query: str, year: str):
-        papers = self.search_provider.citation_count_search(query, year)
+    def _search_citation_count(self, query: str, year: str, skip=[]):
+        papers = self.search_provider.citation_count_search(query, year, skip=skip)
         return self.__process_search(papers)
 
-    def _search_snippet(self, query:str, year: str, src_paper_title: str):
-        results = self.search_provider.snippet_search(query, year, src_paper_title)
+    def _search_snippet(self, query:str, year: str, src_paper_title: str, skip=[]):
+        results = self.search_provider.snippet_search(query, year, src_paper_title, skip=skip)
         print("search snippet results:", results)
         return HumanMessage(results)
 
     def __process_search(self, papers: List[PaperSearchResult]):
         filtered_papers: List[PaperSearchResult] = papers
-        for paper in papers:
-            for source_paper_title in self.source_papers_title:
-                if is_similar(source_paper_title, paper.title):
-                    filtered_papers.remove(paper)
+        self.console.log("Filtering paper using source paper:", self.source_papers_title)
+        if len(self.source_papers_title) != 0:
+            for paper in papers:
+                for source_paper_title in self.source_papers_title:
+                    if is_similar(source_paper_title, paper.title):
+                        filtered_papers.remove(paper)
         papers = filtered_papers
 
         self.paper_buffer.append(papers)
@@ -215,7 +209,22 @@ class LLMSelfAskAgentPydantic(BaseAgent):
 
     def _ask_for_more_context(self, query:str, paper_title:str):
         if paper_title not in self.paper_dict:
-            return HumanMessage(content="Paper not found in database. Please use search_relevance action with the paper title to locate the paper.")
+            self.console.log("Falling back to ask user for more context.")
+            user_lines = []
+            try:
+                # Read all input until EOF (Ctrl+D)
+                user_context = sys.stdin.read().strip()
+            except EOFError:
+                user_context = ""
+
+            if not user_context:
+                self.console.print("[red]No context received.[/red]")
+            else:
+                self.console.print("[green]Received additional context.[/green]")
+            return HumanMessage(content=user_context)
+        
+        self.console.print("\n[green]Received additional context.[/green]")
+        return user_context
         paper_text = self.paper_dict[paper_title]
         clean_text = re.sub(r'\s+', ' ', paper_text).strip()
         pattern = re.escape(query).replace(r'\[CITATION\]', r'\[\d+\]')
@@ -311,10 +320,9 @@ class LLMSelfAskAgentPydantic(BaseAgent):
         prompt = ChatPromptTemplate.from_messages(self.history)
         pipeline = prompt | self.model
         MAX_RETRIES = 3
-        RETRY_DELAY = 60
+        RETRY_DELAY = 30
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                print("hey")
                 response: BaseMessage = pipeline.invoke({})
                 cleaned = extract_last_json_block(response.content)
                 self.history.append(response)
@@ -356,17 +364,17 @@ class LLMSelfAskAgentPydantic(BaseAgent):
             paper_buffer.append(tmp_buffer)
         return paper_buffer
 
-    def __call__(self, excerpt: str, year: str, src_paper_title: str, max_actions=5):
+    def __call__(self, excerpt: str, year: str, src_paper_title: str, max_actions=5, skip=[]):
         prompt = f"The excerpt is from paper title '{self.source_papers_title}':\n"
         message = HumanMessage(content=self.human_intro + "\n\n" + f"{excerpt}")
         for i in range(max_actions):
-            print("ask llm")
             response = self._ask_llm(message, last_action=(i == max_actions - 1))
-            print("response", response)
+            self.console.log("response:", response)
             if response.action.name == "search_relevance":
-                message = self._search_relevance(response.action.query, year)
+                self.console.log("Performing search_relevance with query:", response.action.query)
+                message = self._search_relevance(response.action.query, year, skip=skip)
             elif response.action.name == "search_citation_count":
-                message = self._search_citation_count(response.action.query, year)
+                message = self._search_citation_count(response.action.query, year, skip=skip)
             elif response.action.name == "read":
                 try:
                     message = self._read(response.action.paper_id)
@@ -385,7 +393,7 @@ class LLMSelfAskAgentPydantic(BaseAgent):
             elif response.action.name == "ask_for_more_context":
                 message = self._ask_for_more_context(response.action.query, response.action.paper_title)
             elif response.action.name == "search_text_snippet":
-                message = self._search_snippet(response.action.query, year, src_paper_title)
+                message = self._search_snippet(response.action.query, year, src_paper_title, skip=skip)
             else:
                 raise ValueError("Unknown action")
 
