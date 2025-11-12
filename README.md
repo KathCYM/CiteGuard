@@ -42,3 +42,16 @@ Any of the following depending on which model/platform you intend to use.
 ## 🪪 License <a name="license"></a>
 Code: MIT. Check `LICENSE`.
 Dataset: CC-BY-4.0. Check `LICENSE_DATASET`.
+
+If you find our code useful, please cite our paper:
+```
+@misc{choi2025citeguardfaithfulcitationattribution,
+      title={CiteGuard: Faithful Citation Attribution for LLMs via Retrieval-Augmented Validation}, 
+      author={Yee Man Choi and Xuehang Guo and Yi R. Fung and Qingyun Wang},
+      year={2025},
+      eprint={2510.17853},
+      archivePrefix={arXiv},
+      primaryClass={cs.DL},
+      url={https://arxiv.org/abs/2510.17853}, 
+}
+```
