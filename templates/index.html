@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CiteGuard Frontend</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        label { display: block; margin-top: 10px; }
+        input, textarea { width: 100%; padding: 5px; }
+        button { margin-top: 15px; padding: 10px 20px; }
+        #output { background:#f0f0f0; padding:10px; height:300px; overflow:auto; white-space:pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>CiteGuard Frontend</h1>
+
+    <form id="run-form">
+        <label>Model Name: <input id="model_name" required></label>
+        <label>Excerpt: <textarea id="excerpt" required></textarea></label>
+        <label>Dataset: <input id="dataset"></label>
+        <label>Result Path: <input id="result_path" value="results.json"></label>
+        <label>Local Model: <input type="checkbox" id="local_model"></label>
+        <label>ID: <input id="id" value="manual"></label>
+        <label>Source Paper Title: <input id="source_paper_title"></label>
+        <label>Target Paper Title: <input id="target_paper_title"></label>
+        <label>Year: <input id="year" type="number" value="2025"></label>
+        <label>Skip Citations: <input id="skip_citations"></label>
+        <label>Temperature: <input id="temperature" type="number" step="0.01" value="0.95"></label>
+        <button type="submit">Run</button>
+    </form>
+
+    <h2>Output:</h2>
+    <pre id="output"></pre>
+
+    <script>
+        const form = document.getElementById("run-form");
+        const output = document.getElementById("output");
+
+        form.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            output.textContent = "";
+
+            const data = {
+                model_name: document.getElementById("model_name").value,
+                excerpt: document.getElementById("excerpt").value,
+                dataset: document.getElementById("dataset").value || null,
+                result_path: document.getElementById("result_path").value || "results.json",
+                local_model: document.getElementById("local_model").checked,
+                id: document.getElementById("id").value || "manual",
+                source_paper_title: document.getElementById("source_paper_title").value,
+                target_paper_title: document.getElementById("target_paper_title").value,
+                year: parseInt(document.getElementById("year").value) || 2025,
+                skip_citations: document.getElementById("skip_citations").value,
+                temperature: parseFloat(document.getElementById("temperature").value) || 0.95
+            };
+
+            const response = await fetch("/run_stream", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                output.textContent += decoder.decode(value);
+                output.scrollTop = output.scrollHeight; // auto scroll
+            }
+        });
+    </script>
+</body>
+</html>
+
