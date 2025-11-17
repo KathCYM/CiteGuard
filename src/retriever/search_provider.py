@@ -1,6 +1,6 @@
-from utils.semantic_scholar import SemanticScholarAPI, SemanticScholarWebSearch
-from utils.str_matcher import find_match_psr
-from utils import PaperSearchResult
+from src.utils.semantic_scholar import SemanticScholarAPI, SemanticScholarWebSearch
+from src.utils.str_matcher import find_match_psr
+from src.utils import PaperSearchResult
 from typing import List
 
 TITLE_SEPERATOR = "[TITLE_SEPARATOR]"
@@ -91,6 +91,7 @@ class SemanticScholarSearchProvider(SearchProvider):
                 f"  Snippet: {snippet.get('text')}\n"
                 "\n"
             )
+        self.console.log(snippets_str)
         if len(snippets) == 0:
             snippets_str = "No papers were found for the given search query. Please use a different query."
         return snippets_str

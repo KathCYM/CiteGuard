@@ -1,4 +1,4 @@
-from retriever.llm_base import DEFAULT_TEMPERATURE, get_model_by_name
+from src.retriever.llm_base import DEFAULT_TEMPERATURE, get_model_by_name
 from typing import List, Type
 from langchain_core.messages import (
     SystemMessage,
@@ -10,7 +10,7 @@ from langchain_core.messages import (
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from retriever.search_provider import (
+from src.retriever.search_provider import (
     SemanticScholarSearchProvider,
     PaperSearchResult,
     SemanticScholarWebSearchProvider,
@@ -19,8 +19,8 @@ from tempfile import NamedTemporaryFile
 import requests
 from PyPDF2 import PdfReader
 from functools import reduce
-from utils.str_matcher import is_similar
-from utils.data_model import Output, OutputSearchOnly, OutputNoRead
+from src.utils.str_matcher import is_similar
+from src.utils.data_model import Output, OutputSearchOnly, OutputNoRead
 import time
 import tiktoken
 import re
@@ -198,6 +198,7 @@ class LLMSelfAskAgentPydantic(BaseAgent):
                 + f"   Abstract: {paper.abstract}\n"
                 + f"   Citation Count: {paper.citationCount}\n\n"
             )
+        self.console.log(papers_str)
         if len(papers) == 0:
             papers_str = "No papers were found for the given search query. Please use a different query."
         return HumanMessage(content=papers_str.strip())
@@ -207,46 +208,20 @@ class LLMSelfAskAgentPydantic(BaseAgent):
         return [s for s in sentences if substring.lower() in s.lower()]
 
     def _ask_for_more_context(self, query:str, paper_title:str):
-        if paper_title not in self.paper_dict:
-            self.console.log("Falling back to ask user for more context.")
-            user_lines = []
-            try:
-                # Read all input until EOF (Ctrl+D)
-                user_context = sys.stdin.read().strip()
-            except EOFError:
-                user_context = ""
+        self.console.log("Asking user for more context.")
+        user_lines = []
+        try:
+            # Read all input until EOF (Ctrl+D)
+            user_context = sys.stdin.read().strip()
+        except EOFError:
+            user_context = ""
 
-            if not user_context:
-                self.console.print("[red]No context received.[/red]")
-            else:
-                self.console.print("[green]Received additional context.[/green]")
-            return HumanMessage(content=user_context)
+        if not user_context:
+            self.console.log("[red]No context received.[/red]")
+        else:
+            self.console.log("[green]Received additional context.[/green]")
+        return HumanMessage(content=user_context)
         
-        self.console.print("\n[green]Received additional context.[/green]")
-        return user_context
-        paper_text = self.paper_dict[paper_title]
-        clean_text = re.sub(r'\s+', ' ', paper_text).strip()
-        pattern = re.escape(query).replace(r'\[CITATION\]', r'\[\d+\]')
-        sentence_pattern = re.compile(r'(?<=[.?!])\s+(?=[A-Z])')
-        sentences = sentence_pattern.split(clean_text)
-
-        # Find the index of the sentence containing the match
-        match_idx = -1
-        for i, sentence in enumerate(sentences):
-            if re.search(pattern, sentence):
-                match_idx = i
-                break
-
-        if match_idx == -1:
-            return HumanMessage(content="No matching context found. Please try with a different query.")
-
-        # Extract window of sentences around the match
-        start = max(0, match_idx - window)
-        end = min(len(sentences), match_idx + window + 1)
-        context = ' '.join(sentences[start:end]).strip()
-
-        return HumanMessage(content=context)
-
     def _read_and_find_in_text(self, paper_id: str, query: str):
         text_msg = self._read(paper_id)
         text = text_msg.content
@@ -330,10 +305,10 @@ class LLMSelfAskAgentPydantic(BaseAgent):
                 input_tokens = sum(estimate_tokens(m.content) for m in self.history)
                 output_tokens = estimate_tokens(response.content)
                 total_tokens = input_tokens + output_tokens
-                print('total_tokens updated:', total_tokens)
+                self.console.log('total_tokens updated:', total_tokens)
 
                 if total_tokens > 25000:
-                    print("⚠️ Near TPM limit, sleeping 60s...")
+                    self.console.log("⚠️ Near TPM limit, sleeping 60s...")
                     time.sleep(60)
 
                 # Parse only the part starting from the first '{'

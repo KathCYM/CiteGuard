@@ -34,11 +34,24 @@ Any of the following depending on which model/platform you intend to use.
 ### Run your own citation search
 1. Follow the same setup instruction, and run the following command:
    ```
-   python src/main.py  --model_name <model name> --excerpt <str containing the excerpt> --skip_citations <str of list of citations to skip, seperated by commas>
+   python src/main.py  --model_name <model name> --excerpt <str containing the excerpt, replace where you want the citation with [CITATION]> --skip_citations <str of list of citations to skip, seperated by commas>
+   ```
 
 ### Run with your local model (Ollama)
 1. To run with your local model using ollama, simply add the `--local_model` flag and use the ollama model name you used to create the model.
 
+### Flask Server
+1. To start a flask server, simply run the command
+   ```
+   python app.py
+   ```
+2. Use either the UI at http://127.0.0.1:5000/ or the following command
+   ```
+   curl -X POST http://127.0.0.1:5000/run_stream      -H "Content-Type: application/json"      -d '{
+           "model_name": <model name>,
+           "excerpt": <str containing the excerpt, replace where you want the citation to [CITATION]>
+         }' 
+   ```
 ## 🪪 License <a name="license"></a>
 Code: MIT. Check `LICENSE`.
 Dataset: CC-BY-4.0. Check `LICENSE_DATASET`.

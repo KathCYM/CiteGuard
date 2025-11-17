@@ -1,1 +1,1 @@
-from utils.data_model import PaperSearchResult, PaperAuthor
+from src.utils.data_model import PaperSearchResult, PaperAuthor
