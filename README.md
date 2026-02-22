@@ -71,3 +71,6 @@ If you find our code useful, please cite our paper:
       url={https://arxiv.org/abs/2510.17853}, 
 }
 ```
+
+## Acknowledgement
+This work is built on top of <a href="https://github.com/bethgelab/CiteME"><strong>CiteAgent</strong></a>
