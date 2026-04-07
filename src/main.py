@@ -1,22 +1,13 @@
-import os
-import json
-import pandas as pd
+import sys
+from pathlib import Path
 from rich.console import Console
-from retriever.agent import (
-    LLMSelfAskAgentPydantic,
-    LLMNoSearch,
-    OutputNoRead,
-    OutputSearchOnly,
-    Output,
-)
-from utils.str_matcher import find_match_psr, find_multi_match_psr
-from utils.tokens import num_tokens_from_string
-from datetime import datetime
-from time import time
-from rich.progress import track
-from retriever.llm_base import DEFAULT_TEMPERATURE
 import argparse
-from run_main import run
+
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from src.retriever.llm_base import DEFAULT_TEMPERATURE
+from src.run_main import run
 
 def main():
     parser = argparse.ArgumentParser(description="Run citation retrieval agent.")
@@ -37,6 +28,10 @@ def main():
     parser.add_argument("--year", type=int, default=2025, help="Publication year of source paper which contains the excerpt (default: 2025).")
     parser.add_argument("--skip_citations", type=str, default="",
                         help="Comma-separated list of found citations for the excerpt (used in single input mode).")
+    parser.add_argument("--additional_context", type=str, default=None,
+                        help="Optional extra context to use if the agent asks for more context.")
+    parser.add_argument("--no_interactive_context", action="store_true",
+                        help="Disable terminal prompts when the agent asks for more context.")
 
     # parameters
     parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE,

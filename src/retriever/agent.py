@@ -92,6 +92,72 @@ class PaperNotFoundError(ValueError):
     pass
 
 
+class ContextProvider:
+    def request_context(self, query: str, paper_title: str) -> str:
+        raise NotImplementedError
+
+
+class InteractiveConsoleContextProvider(ContextProvider):
+    def __init__(self, console=None) -> None:
+        self.console = console
+
+    def request_context(self, query: str, paper_title: str) -> str:
+        if self.console:
+            self.console.print("[bold yellow]Additional context requested[/bold yellow]")
+            self.console.print(f"Paper title: {paper_title or 'unknown'}")
+            self.console.print(f"Focus: {query}")
+            self.console.print(
+                "Paste extra context below. Submit an empty line to finish, or type SKIP to continue without more context."
+            )
+        else:
+            print("Additional context requested")
+            print(f"Paper title: {paper_title or 'unknown'}")
+            print(f"Focus: {query}")
+            print(
+                "Paste extra context below. Submit an empty line to finish, or type SKIP to continue without more context."
+            )
+
+        lines: List[str] = []
+        while True:
+            try:
+                line = input("context> ")
+            except EOFError:
+                break
+            except KeyboardInterrupt:
+                if self.console:
+                    self.console.print("\n[yellow]Context entry cancelled.[/yellow]")
+                else:
+                    print("\nContext entry cancelled.")
+                return ""
+
+            stripped = line.strip()
+            if not stripped:
+                break
+            if not lines and stripped.lower() == "skip":
+                return ""
+            lines.append(line)
+
+        return "\n".join(lines).strip()
+
+
+class StaticContextProvider(ContextProvider):
+    def __init__(self, context: str | None = None, console=None) -> None:
+        self.context = context.strip() if context else ""
+        self.console = console
+
+    def request_context(self, query: str, paper_title: str) -> str:
+        if self.context:
+            if self.console:
+                self.console.print("[green]Using provided additional context.[/green]")
+            return self.context
+
+        if self.console:
+            self.console.print(
+                "[yellow]Additional context was requested, but interactive prompting is disabled.[/yellow]"
+            )
+        return ""
+
+
 class LLMSelfAskAgentPydantic(BaseAgent):
 
     prompts = {
@@ -120,6 +186,7 @@ class LLMSelfAskAgentPydantic(BaseAgent):
         pydantic_object: Type[Output] | Type[OutputSearchOnly] = Output,
         console = None,
         local_model: bool = False,
+        context_provider: ContextProvider | None = None,
     ) -> None:
         self.prompt_template_path = self.prompts[prompt_name][0]
         self.human_intro = self.human_intros[self.prompts[prompt_name][1]]
@@ -136,6 +203,7 @@ class LLMSelfAskAgentPydantic(BaseAgent):
             )
         self.source_papers_title: List[str] = []
         self.console = console
+        self.context_provider = context_provider or StaticContextProvider(console=console)
         self.reset()
 
     def reset(self, source_papers_title: List[str] = [], skip=[]):
@@ -209,18 +277,24 @@ class LLMSelfAskAgentPydantic(BaseAgent):
 
     def _ask_for_more_context(self, query:str, paper_title:str):
         self.console.log("Asking user for more context.")
-        user_lines = []
-        try:
-            # Read all input until EOF (Ctrl+D)
-            user_context = sys.stdin.read().strip()
-        except EOFError:
-            user_context = ""
-
+        user_context = self.context_provider.request_context(query, paper_title)
         if not user_context:
             self.console.log("[red]No context received.[/red]")
+            return HumanMessage(
+                content=(
+                    "No additional context was provided by the user. "
+                    f"Paper title: {paper_title or 'unknown'}. "
+                    f"Focus query: {query}. Continue using only the original excerpt."
+                )
+            )
         else:
             self.console.log("[green]Received additional context.[/green]")
-        return HumanMessage(content=user_context)
+            return HumanMessage(
+                content=(
+                    f"Additional context from the user for paper title '{paper_title or 'unknown'}' "
+                    f"and focus query '{query}':\n{user_context}"
+                )
+            )
         
     def _read_and_find_in_text(self, paper_id: str, query: str):
         text_msg = self._read(paper_id)
@@ -228,15 +302,15 @@ class LLMSelfAskAgentPydantic(BaseAgent):
 
         # Simple heuristic: check for known error phrases
         if "error reading" in text.lower() or "does not have an open access" in text.lower():
-            print("error reading", text)
+            self.console.log("Unable to search within paper text because reading failed.")
             return text_msg
 
         matches = self.find_sentences_with_substring(text, query)
         if matches:
-            print(matches[0])
+            self.console.log(f"Found {len(matches)} sentence(s) for query: {query}")
             return HumanMessage(content="\n".join(matches))
         else:
-            print("no match")
+            self.console.log(f"No sentence found for query: {query}")
             return HumanMessage(content=f"No sentence found containing '{query}'.")
 
     def handle_aaai(self, url):
@@ -256,7 +330,7 @@ class LLMSelfAskAgentPydantic(BaseAgent):
         if paper.openAccessPdf.url is None or paper.openAccessPdf.url == '':
             return HumanMessage(content="This paper does not have an open access PDF.")
         try:
-            print(f"reading {paper.openAccessPdf.url}")
+            self.console.log(f"Reading paper PDF: {paper.openAccessPdf.url}")
             pdf_text = ""
             with NamedTemporaryFile(mode="wb", suffix=".pdf") as f:
                 if 'aaai' in paper.openAccessPdf.url:
@@ -316,12 +390,13 @@ class LLMSelfAskAgentPydantic(BaseAgent):
                 return self.parser.invoke(parsed_response)
 
             except Exception as e:
-                print(f"❌ Attempt {attempt} failed: {e} \n{response}")
+                self.console.log(f"LLM attempt {attempt} failed: {e}")
                 if attempt < MAX_RETRIES:
-                    print(f"🔁 Retrying in {RETRY_DELAY}s...")
+                    self.console.log(f"Retrying in {RETRY_DELAY}s...")
                     time.sleep(RETRY_DELAY)
                 else:
-                    print("🚫 Max retries reached. Raising error.")
+                    self.console.log("Max retries reached. Raising error.")
+                    raise e
                     raise e
 
         """response: BaseMessage = pipeline.invoke({})

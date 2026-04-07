@@ -1,13 +1,16 @@
 import os
 import json
+import sys
 import pandas as pd
 from rich.console import Console
 from src.retriever.agent import (
+    InteractiveConsoleContextProvider,
     LLMSelfAskAgentPydantic,
     LLMNoSearch,
     OutputNoRead,
     OutputSearchOnly,
     Output,
+    StaticContextProvider,
 )
 from src.utils.str_matcher import find_match_psr, find_multi_match_psr
 from src.utils.tokens import num_tokens_from_string
@@ -63,6 +66,23 @@ def run(args, console):
     executor = "LLMSelfAskAgentPydantic"
     actions = "search_relevance,search_citation_count,read,select,find_in_text,ask_for_more_context,search_text_snippet"
     pdo = Output
+    interactive_context = getattr(
+        args,
+        "interactive_context",
+        args.dataset is None and sys.stdin.isatty(),
+    )
+    if getattr(args, "no_interactive_context", False):
+        interactive_context = False
+
+    additional_context = getattr(args, "additional_context", None)
+    if interactive_context:
+        context_provider = InteractiveConsoleContextProvider(console=console)
+    else:
+        context_provider = StaticContextProvider(
+            context=additional_context,
+            console=console,
+        )
+
     console.log("using Ouput pdo")
     console.log(metadata)
     agent = LLMSelfAskAgentPydantic(
@@ -75,6 +95,7 @@ def run(args, console):
         pydantic_object=pdo,
         console = console,
         local_model=args.local_model,
+        context_provider=context_provider,
     )
 
     results = []

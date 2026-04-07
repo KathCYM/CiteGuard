@@ -1,70 +1,141 @@
-<h2>CiteGuard: Faithful Citation Attribution for LLMs via Retrieval-Augmented Validation</h2>
+# CiteGuard
 
-<p>
-   <a href="https://www.arxiv.org/abs/2510.17853"><strong>Arxiv </strong></a>
-   <a href="https://huggingface.co/papers/2510.17853"><strong>Huggingface</strong></a>
-   
-Large Language Models (LLMs) have emerged as promising assistants for scientific writing. However, there have been concerns regarding the quality and reliability of the generated text, one of which is the citation accuracy and faithfulness. While most recent work relies on methods such as LLM-as-a-Judge, the reliability of LLM-as-a-Judge alone is also in doubt. In this work, we reframe citation evaluation as a problem of citation attribution alignment, which is assessing whether LLM-generated citations match those a human author would include for the same text. We propose CiteGuard, a retrieval-aware agent framework designed to provide more faithful grounding for citation validation. CiteGuard improves the prior baseline by 17%, and achieves up to 68.1% accuracy on the CiteME benchmark, approaching human-level performance (69.7\%). It also enables the identification of alternative but valid citations and demonstrates generalization ability for cross-domain citation attribution.
-</p>
+Large Language Models (LLMs) have emerged as promising assistants for scientific writing. However, there have been concerns regarding the quality and reliability of the generated text, one of which is the citation accuracy and faithfulness. While most recent work relies on methods such as LLM-as-a-Judge, the reliability of LLM-as-a-Judge alone is also in doubt. In this work, we reframe citation evaluation as a problem of citation attribution alignment, which is assessing whether LLM-generated citations match those a human author would include for the same text. We propose CiteGuard, a retrieval-aware agent framework designed to provide more faithful grounding for citation validation. CiteGuard improves the prior baseline by 17%, and achieves up to 68.1% accuracy on the CiteME benchmark, approaching human-level performance (69.7%). It also enables the identification of alternative but valid citations and demonstrates generalization ability for cross-domain citation attribution.
 
-## CiteGuard Agent
+- [arXiv](https://www.arxiv.org/abs/2510.17853)
+- [Hugging Face paper page](https://huggingface.co/papers/2510.17853)
 
-### Environment variables
+## Setup
 
-CiteAgent requires following environment variables to function properly:
-- `S2_API_KEY`: Your semantic scholar api key
+Run from the repository root.
 
-Any of the following depending on which model/platform you intend to use.
-- `OPENAI_API_KEY`: Your openai api key (for openai models)
-- `ANTHROPIC_API_KEY`: Your anthropic api key (for claude models)
-- `TOGETHER_API_KEY`: Your together api key (for llama models)
-- `DEEPSEEK_API_KEY`: Your deepseek api key (for deepseek models)
-
-### Run CiteME evaluation
-1. Install the required python packages listed in the `requirements.txt`.
-   ```
-   pip install -r requirements.txt
-   ```
-
-2. Download the dataset from [citeme.ai](https://www.citeme.ai) and place it in the project folder as `DATASET.csv`. You will need to convert from .tsv to .csv if needed.
-
-3. Run the following command. 
-   ```
-   python src/main.py --dataset <path to citeme.csv> --model_name <model name> 
-   ```
-
-### Run your own citation search
-1. Follow the same setup instruction, and run the following command:
-   ```
-   python src/main.py  --model_name <model name> --excerpt <str containing the excerpt, replace where you want the citation with [CITATION]> --skip_citations <str of list of citations to skip, seperated by commas>
-   ```
-
-### Run with your local model (Ollama)
-1. To run with your local model using ollama, simply add the `--local_model` flag and use the ollama model name you used to create the model.
-
-### Flask Server
-1. To start a flask server, simply run the command
-   ```
-   python app.py
-   ```
-2. Use either the UI at http://127.0.0.1:5000/ or the following command
-   ```
-   curl -X POST http://127.0.0.1:5000/run_stream      -H "Content-Type: application/json"      -d '{
-           "model_name": <model name>,
-           "excerpt": <str containing the excerpt, replace where you want the citation to [CITATION]>
-         }' 
-   ```
-
-## 🪪 License <a name="license"></a>
-Code: MIT. Check `LICENSE`.
-Dataset: CC-BY-4.0. Check `LICENSE_DATASET`.
-
-If you find our code useful, please cite our paper:
+```bash
+pip install -r requirements.txt
 ```
-@misc{choi2025citeguardfaithfulcitationattribution,
+
+Required:
+
+- `S2_API_KEY`
+
+Set the model provider key that matches the model you want to use:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `TOGETHER_API_KEY`
+- `DEEPSEEK_API_KEY`
+- `GOOGLE_API_KEY`
+
+If you use `--local_model`, CiteGuard uses Ollama and does not need a cloud model API key.
+
+## CLI
+
+Single excerpt:
+
+```bash
+python -m src.main --model_name gpt-4o --excerpt "Your excerpt with [CITATION]"
+```
+
+Dataset:
+
+```bash
+python -m src.main --model_name gpt-4o --dataset DATASET.csv --result_path results/run.json
+```
+
+Useful options:
+
+- `--result_path`: JSON output file. Existing results are loaded first, and already-processed IDs are skipped.
+- `--source_paper_title`: source paper title for the excerpt.
+- `--target_paper_title`: gold title for evaluation. Use `[TITLE_SEPARATOR]` for multiple acceptable titles.
+- `--skip_citations`: comma-separated titles to exclude.
+- `--additional_context`: extra surrounding text provided up front.
+- `--no_interactive_context`: disable terminal prompts for more context.
+- `--year`: source paper year. Default: `2025`.
+- `--temperature`: model temperature. Default: `0.95`.
+- `--local_model`: use Ollama instead of a hosted API model.
+
+Example:
+
+```bash
+python -m src.main \
+  --model_name gpt-4o \
+  --source_paper_title "Example Source Paper" \
+  --excerpt "Transformer-based retrieval improves grounded generation [CITATION]." \
+  --skip_citations "Attention Is All You Need,Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"
+```
+
+In single-excerpt CLI mode, the agent can ask for more context. Paste one or more lines and press Enter on an empty line to submit, or type `SKIP` to continue without extra context.
+
+## Dataset Format
+
+Expected CSV columns:
+
+- `id`
+- `excerpt`
+- `year`
+- `source_paper_title` (optional)
+- `target_paper_title` (optional)
+
+## Web UI
+
+Start the local server:
+
+```bash
+python app.py
+```
+
+Then open [http://127.0.0.1:5000/](http://127.0.0.1:5000/).
+
+The web UI supports:
+
+- single-excerpt runs
+- dataset runs
+- browsing results by ID after a run
+- loading an existing `result_path` without re-running the agent via `Load Result Path`
+
+If the `result_path` already exists, the web app loads it first, skips IDs that are already done, and writes the updated results back to that path after the run.
+
+The web UI is not mid-run conversational. If you want to provide extra context, use the `Additional Context` field.
+
+## Output
+
+Each result JSON file contains:
+
+- `metadata`: run configuration
+- `results`: one entry per excerpt
+
+Each result entry may include:
+
+- `id`
+- `excerpt`
+- `selected`
+- `status`
+- `error`
+- `papers`
+- `history`
+- `duration`
+- `is_correct`
+- `is_in_search`
+
+## Key Files
+
+- `src/main.py`: CLI entrypoint
+- `src/run_main.py`: main execution flow
+- `src/retriever/agent.py`: agent loop and tool actions
+- `app.py`: Flask backend
+- `templates/index.html`: web frontend
+
+## License
+
+- Code: MIT. See `LICENSE`.
+- Dataset: CC-BY-4.0. See `LICENSE_DATASET`.
+
+If you use this repository, please cite:
+
+```bibtex
+@misc{choi2026citeguardfaithfulcitationattribution,
       title={CiteGuard: Faithful Citation Attribution for LLMs via Retrieval-Augmented Validation}, 
       author={Yee Man Choi and Xuehang Guo and Yi R. Fung and Qingyun Wang},
-      year={2025},
+      year={2026},
       eprint={2510.17853},
       archivePrefix={arXiv},
       primaryClass={cs.DL},
@@ -73,4 +144,5 @@ If you find our code useful, please cite our paper:
 ```
 
 ## Acknowledgement
-This work is built on top of <a href="https://github.com/bethgelab/CiteME"><strong>CiteAgent</strong></a>
+
+This project builds on [CiteME / CiteAgent](https://github.com/bethgelab/CiteME).
